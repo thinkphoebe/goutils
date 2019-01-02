@@ -1,4 +1,4 @@
-module vision_utils
+module github.com/thinkphoebe/goutils
 
 require (
 	github.com/DataDog/zstd v1.3.5 // indirect
