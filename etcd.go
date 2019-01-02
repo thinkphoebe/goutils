@@ -136,8 +136,8 @@ func (this *Etcd) Txn(cmps []clientv3.Cmp, ifs []clientv3.Op, elses []clientv3.O
 	return resp, err
 }
 
-func (this *Etcd) Watch(key, action string, prefix bool, callback func(key string, val []byte)) {
-	log.Infof("[etcd][SLA] Watch %s - key [%s], prefix [%t]", action, key, prefix)
+func (this *Etcd) WatchCallback(key, action string, prefix bool, callback func(key string, val []byte) bool, ctx context.Context) {
+	log.Infof("[etcd][SLA] WatchCallback %s - key [%s], prefix [%t]", action, key, prefix)
 
 	et := mvccpb.DELETE
 	if action == "PUT" {
@@ -148,20 +148,29 @@ func (this *Etcd) Watch(key, action string, prefix bool, callback func(key strin
 	if prefix {
 		opts = append(opts, clientv3.WithPrefix())
 	}
-	rch := this.Client.Watch(context.TODO(), key, opts...)
+	if ctx == nil {
+		ctx = context.TODO()
+	}
+	rch := this.Client.Watch(ctx, key, opts...)
 
 	for wresp := range rch {
 		for _, ev := range wresp.Events {
 			if ev.Type == et {
-				log.Debugf("[etcd][SLA] Watch %s - key [%s], val [%s]",
+				log.Debugf("[etcd][SLA] WatchCallback %s - key [%s], val [%s]",
 					action, string(ev.Kv.Key), string(ev.Kv.Value))
 				go callback(string(ev.Kv.Key), ev.Kv.Value)
 			}
 		}
 	}
+	log.Warnf("[etcd][SLA] WatchCallback complete. key:%s, action:%s, prefix:%v", key, action, prefix)
 }
 
-func (this *Etcd) Walk(prefix string, visitor EtcdVisitor, opts []clientv3.OpOption) error {
+func (this *Etcd) WatchVisitor(key, action string, prefix bool, visitor EtcdVisitor, ctx context.Context) {
+	this.WatchCallback(key, action, prefix, visitor.Visit, ctx)
+}
+
+func (this *Etcd) WalkCallback(prefix string, callback func(key string, val []byte) bool,
+	opts []clientv3.OpOption) error {
 	all_opts := []clientv3.OpOption{}
 	all_opts = append(all_opts, clientv3.WithPrefix())
 	all_opts = append(all_opts, clientv3.WithLimit(500))
@@ -176,7 +185,7 @@ func (this *Etcd) Walk(prefix string, visitor EtcdVisitor, opts []clientv3.OpOpt
 		out, err := this.Client.Get(ctx, keyStart, all_opts...)
 		cancel()
 		if err != nil {
-			log.Errorf("[etcd][SLA] Walk - cli.Get [%s] got error [%v]", keyStart, err)
+			log.Errorf("[etcd][SLA] WalkVisitor - cli.Get [%s] got error [%v]", keyStart, err)
 			return err
 		}
 		if len(out.Kvs) == 0 {
@@ -185,13 +194,17 @@ func (this *Etcd) Walk(prefix string, visitor EtcdVisitor, opts []clientv3.OpOpt
 
 		for _, kv := range out.Kvs {
 			log.
-				Debugf("[etcd] Walk - prefix [%s] keyStart [%s] got [%s:%s]", prefix, keyStart, kv.Key, kv.Value)
-			if !visitor.Visit(string(kv.Key), kv.Value) {
-				log.Errorf("[etcd][SLA] Walk - canceled by visitor")
+				Debugf("[etcd] WalkVisitor - prefix [%s] keyStart [%s] got [%s:%s]", prefix, keyStart, kv.Key, kv.Value)
+			if !callback(string(kv.Key), kv.Value) {
+				log.Errorf("[etcd][SLA] WalkVisitor - canceled by visitor")
 				return nil
 			}
 		}
 		keyStart = string(out.Kvs[len(out.Kvs)-1].Key) + "\x00"
 	}
 	return nil
+}
+
+func (this *Etcd) WalkVisitor(prefix string, visitor EtcdVisitor, opts []clientv3.OpOption) error {
+	return this.WalkCallback(prefix, visitor.Visit, opts)
 }
