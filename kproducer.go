@@ -1,4 +1,4 @@
-package utils
+package goutils
 
 import (
 	"github.com/Shopify/sarama"

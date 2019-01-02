@@ -1,11 +1,12 @@
-package utils
+package goutils
 
 import (
+	"bytes"
+	"os"
+
 	"github.com/ks3sdklib/aws-sdk-go/aws"
 	"github.com/ks3sdklib/aws-sdk-go/aws/credentials"
 	"github.com/ks3sdklib/aws-sdk-go/service/s3"
-	"os"
-	"bytes"
 	log "github.com/thinkphoebe/golog"
 )
 
@@ -50,8 +51,7 @@ func (this *Ks3Client) Upload(objectKey string, content []byte, isPrivate bool) 
 		ACL:         aws.String(acl), //权限，支持private(私有)，public-read(公开读)
 		Body:        bytes.NewReader(content),
 		ContentType: aws.String("application/ocet-stream"),
-		Metadata: map[string]*string{
-		},
+		Metadata:    map[string]*string{},
 	}
 	resp, err := this.client.PutObject(params)
 	if err != nil {

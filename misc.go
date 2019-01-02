@@ -1,4 +1,4 @@
-package utils
+package goutils
 
 import (
 	"crypto/md5"
@@ -6,8 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"io"
-	"os"
 	"net"
+	"os"
 	"strings"
 )
 
