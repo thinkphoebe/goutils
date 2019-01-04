@@ -12,6 +12,8 @@ import (
 	log "github.com/thinkphoebe/golog"
 )
 
+var GEurekaPath = "/eureka/apps/"
+
 type EurekaRegisterReq struct {
 	Instance *EurekaInstanceInfo `json:"instance"`
 }
@@ -103,7 +105,7 @@ type EurekaClient struct {
 }
 
 func endpointUrl(eurekaUrl, app string) string {
-	return eurekaUrl + "/eureka/v2/apps/" + app
+	return eurekaUrl + GEurekaPath + app
 }
 
 func (this *EurekaService) Init(eurekaUrls []string, instance *EurekaInstanceInfo, heartBeat int) {
