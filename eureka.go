@@ -361,7 +361,12 @@ func (this *EurekaClient) GetInstanceMatch(metaMatch map[string]string) *EurekaI
 	defer this.mutex.Unlock()
 
 	size := len(this.instanceIds)
+	if len(this.instanceIds) <= 0 {
+		log.Debugf("[GetInstanceMatch] no instance [%s]", this.app)
+		return nil
+	}
 	pos := GRand.Intn(size)
+
 NEXTINST:
 	for i := 0; i < size; i++ {
 		inst := this.instances[this.instanceIds[pos]]
