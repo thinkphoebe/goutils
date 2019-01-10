@@ -293,7 +293,7 @@ func (this *EurekaClient) Start() {
 			log.Errorf("[EurekaClient] [%s] json.Unmarshal got err [%v], [%s]", epUrl, err, string(bytesValue))
 			return nil
 		}
-		log.Debugf("[EurekaClient] [%s] [%s](%#v)", epUrl, string(bytesValue), eresp)
+		//log.Debugf("[EurekaClient] [%s] [%s](%#v)", epUrl, string(bytesValue), eresp)
 		return &eresp.Application
 	}
 
@@ -311,14 +311,20 @@ func (this *EurekaClient) Start() {
 				}
 
 				this.mutex.Lock()
-				for _, ins := range app.Instances {
-					ins.lastUpdateTime = time.Now().Unix()
-					this.instances[ins.InstanceId] = &ins
+				for _, inst := range app.Instances {
+					if _, ok := this.instances[inst.InstanceId]; !ok {
+						log.Infof("[EurekaClient] new instance [%s:%s:%d] for service [%s], meta [%#v]",
+							inst.InstanceId, inst.IpAddr, inst.Port.Dollar, inst.App, inst.Metadata)
+					}
+					inst.lastUpdateTime = time.Now().Unix()
+					this.instances[inst.InstanceId] = &inst
 				}
 
 				this.instanceIds = make([]string, 0)
 				for key, inst := range this.instances {
 					if time.Now().Unix()-inst.lastUpdateTime > this.instanceTimeout {
+						log.Infof("[EurekaClient] remove timeout instance [%s:%s:%d] for service [%s], meta [%#v]",
+							inst.InstanceId, inst.IpAddr, inst.Port.Dollar, inst.App, inst.Metadata)
 						delete(this.instances, inst.InstanceId)
 						continue
 					}
