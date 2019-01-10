@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"sort"
 	"sync"
@@ -13,6 +14,7 @@ import (
 )
 
 var GEurekaPath = "/eureka/apps/"
+var GRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 type EurekaRegisterReq struct {
 	Instance *EurekaInstanceInfo `json:"instance"`
@@ -94,7 +96,6 @@ type EurekaService struct {
 type EurekaClient struct {
 	app             string
 	endpoints       []string
-	readIndex       int
 	instances       map[string]*EurekaInstanceInfo
 	instanceIds     []string
 	refreshInterval int
@@ -221,7 +222,7 @@ func (this *EurekaService) runServiceUp(index int) {
 }
 
 func (this *EurekaService) Register() {
-	for index, _ := range this.endpoints {
+	for index := range this.endpoints {
 		go this.runServiceUp(index)
 	}
 }
@@ -314,7 +315,17 @@ func (this *EurekaClient) Start() {
 					ins.lastUpdateTime = time.Now().Unix()
 					this.instances[ins.InstanceId] = &ins
 				}
-				this.updateInstanceids()
+
+				this.instanceIds = make([]string, 0)
+				for key, inst := range this.instances {
+					if time.Now().Unix()-inst.lastUpdateTime > this.instanceTimeout {
+						delete(this.instances, inst.InstanceId)
+						continue
+					}
+					this.instanceIds = append(this.instanceIds, key)
+				}
+				sort.Strings(this.instanceIds)
+
 				this.mutex.Unlock()
 			case <-this.chCancel:
 				return
@@ -327,34 +338,45 @@ func (this *EurekaClient) Stop() {
 	this.chCancel <- true
 }
 
-func (this *EurekaClient) updateInstanceids() {
-	this.instanceIds = make([]string, 0)
-	for key, _ := range this.instances {
-		this.instanceIds = append(this.instanceIds, key)
-	}
-	sort.Strings(this.instanceIds)
-}
-
-func (this *EurekaClient) nextInstance() *EurekaInstanceInfo {
-	this.readIndex += 1
-	if this.readIndex >= len(this.instanceIds) {
-		this.readIndex = 0
-	}
-	return this.instances[this.instanceIds[this.readIndex]]
-}
-
 func (this *EurekaClient) GetInstance() *EurekaInstanceInfo {
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
-	for i := 0; i < len(this.instanceIds); i += 1 {
-		inst := this.nextInstance()
-		if time.Now().Unix()-inst.lastUpdateTime > this.instanceTimeout {
-			delete(this.instances, inst.InstanceId)
-			this.updateInstanceids()
-		} else {
-			log.Debugf("[GetInstance] [%v]", inst)
-			return inst
-		}
+	if len(this.instanceIds) <= 0 {
+		log.Debugf("[GetInstance] no instance [%s]", this.app)
+		return nil
 	}
+	inst := this.instances[this.instanceIds[GRand.Intn(len(this.instanceIds))]]
+	log.Debugf("[GetInstance] got [%s][%v]", this.app, inst)
+	return inst
+}
+
+func (this *EurekaClient) GetInstanceMatch(metaMatch map[string]string) *EurekaInstanceInfo {
+	this.mutex.Lock()
+	defer this.mutex.Unlock()
+
+	size := len(this.instanceIds)
+	pos := GRand.Intn(size)
+NEXTINST:
+	for i := 0; i < size; i++ {
+		inst := this.instances[this.instanceIds[pos]]
+		pos = (pos + 1) % size
+
+		if inst.Metadata == nil {
+			continue NEXTINST
+		}
+		for k, v := range metaMatch {
+			if meta, ok := inst.Metadata[k]; ok {
+				if meta != v {
+					continue NEXTINST
+				}
+			} else {
+				continue NEXTINST
+			}
+		}
+
+		log.Debugf("[GetInstanceMatch] got [%s][%v]", this.app, inst)
+		return inst
+	}
+	log.Debugf("[GetInstanceMatch] no match instance [%s][%#v]", this.app, metaMatch)
 	return nil
 }
