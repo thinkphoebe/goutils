@@ -306,26 +306,30 @@ func (this *EurekaClient) Start() {
 			case <-ticker.C:
 				app := readApp(this.endpoints[index])
 				index = (index + 1) % len(this.endpoints)
-				if app == nil {
-					continue
-				}
 
 				this.mutex.Lock()
-				for _, inst := range app.Instances {
-					if _, ok := this.instances[inst.InstanceId]; !ok {
-						log.Infof("[EurekaClient] new instance [%s:%s:%d] for service [%s], meta [%#v]",
-							inst.InstanceId, inst.IpAddr, inst.Port.Dollar, inst.App, inst.Metadata)
+
+				if app != nil {
+					for _, inst := range app.Instances {
+						if instOri, ok := this.instances[inst.InstanceId]; ok {
+							instOri.lastUpdateTime = time.Now().Unix()
+						} else {
+							log.Infof("[EurekaClient] new instance [%s:%s:%d] for service [%s], meta [%#v]",
+								inst.InstanceId, inst.IpAddr, inst.Port.Dollar, inst.App, inst.Metadata)
+							instNew := inst
+							instNew.lastUpdateTime = time.Now().Unix()
+							this.instances[inst.InstanceId] = &instNew
+						}
 					}
-					inst.lastUpdateTime = time.Now().Unix()
-					this.instances[inst.InstanceId] = &inst
 				}
 
 				this.instanceIds = make([]string, 0)
 				for key, inst := range this.instances {
 					if time.Now().Unix()-inst.lastUpdateTime > this.instanceTimeout {
-						log.Infof("[EurekaClient] remove timeout instance [%s:%s:%d] for service [%s], meta [%#v]",
-							inst.InstanceId, inst.IpAddr, inst.Port.Dollar, inst.App, inst.Metadata)
-						delete(this.instances, inst.InstanceId)
+						log.Infof("[EurekaClient] remove timeout [%d:%d] instance [%s][%s:%s:%d] for service [%s], meta [%#v]",
+							time.Now().Unix(), inst.lastUpdateTime, key, inst.InstanceId,
+							inst.IpAddr, inst.Port.Dollar, inst.App, inst.Metadata)
+						delete(this.instances, key)
 						continue
 					}
 					this.instanceIds = append(this.instanceIds, key)
