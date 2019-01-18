@@ -234,8 +234,10 @@ func (this *EurekaService) UnRegister() {
 		client := &http.Client{
 			Timeout: 10 * time.Second,
 		}
-		epUrl := endpointUrl(ep.url, this.instance.App) + "/" + this.instance.InstanceId
-		req, err := http.NewRequest("DELETE", epUrl, nil)
+		//epUrl := endpointUrl(ep.url, this.instance.App) + "/" + this.instance.InstanceId
+		//req, err := http.NewRequest("DELETE", epUrl, nil)
+		epUrl := endpointUrl(ep.url, this.instance.App) + "/" + this.instance.InstanceId + "/status?value=OUT_OF_SERVICE"
+		req, err := http.NewRequest("PUT", epUrl, nil)
 		if err != nil {
 			log.Errorf("[UnRegister] [%s] http.NewRequest got err [%s]", epUrl, err)
 			continue
