@@ -26,7 +26,7 @@ type Ks3Client struct {
 }
 
 func (this *Ks3Client) Init(config *Ks3Config) {
-	log.Infof("[Ks3Client.Init] %#v", config)
+	//log.Infof("[Ks3Client.Init] %#v", config)
 	c := credentials.NewStaticCredentials(config.Ak, config.Sk, "")
 	this.Client = s3.New(&aws.Config{
 		Region:           config.Region,
@@ -68,6 +68,6 @@ func (this *Ks3Client) Upload(objectKey string, content []byte, isPrivate bool) 
 		}
 	}
 
-	log.Debugf("[Ks3Client.Upload] OK, objectKey:%s", objectKey)
+	//log.Debugf("[Ks3Client.Upload] OK, objectKey:%s", objectKey)
 	return nil
 }

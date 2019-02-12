@@ -1,6 +1,7 @@
 package goutils
 
 import (
+	"errors"
 	"github.com/Shopify/sarama"
 )
 
@@ -10,10 +11,12 @@ type KafkaAsyncProducer struct {
 
 func (kap *KafkaAsyncProducer) Init(brokeList []string, conf *sarama.Config) error {
 	if brokeList == nil || len(brokeList) <= 0 {
+		return errors.New("invalid brokerList")
 	}
 
 	producer, err := sarama.NewAsyncProducer(brokeList, conf)
 	if err != nil {
+		return err
 	}
 
 	kap.producer = producer
@@ -22,6 +25,7 @@ func (kap *KafkaAsyncProducer) Init(brokeList []string, conf *sarama.Config) err
 
 func (kap *KafkaAsyncProducer) SendData(topic string, data []byte) error {
 	if kap.producer == nil {
+		return errors.New("no producer, you should call Init() first")
 	}
 
 	msg := &sarama.ProducerMessage{
