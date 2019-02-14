@@ -46,9 +46,9 @@ func LoadConfig(path string, pCfgObj interface{}) error {
 func PrintConfig(name string, pCfgObj interface{}) {
 	data, err := json.MarshalIndent(pCfgObj, "", "    ")
 	if err != nil {
-		fmt.Printf("config [%s] json.Marshal FAILED! err [%v] [%v]\n", name, err, pCfgObj)
+		fmt.Fprintf(os.Stderr, "config [%s] json.Marshal FAILED! err [%v] [%v]\n", name, err, pCfgObj)
 	} else {
-		fmt.Printf("config [%s] ======>%s\n", name, data)
+		fmt.Fprintf(os.Stderr, "config [%s] ======>%s\n", name, data)
 	}
 }
 
