@@ -6,7 +6,7 @@ import (
 )
 
 type KafkaAsyncProducer struct {
-	producer sarama.AsyncProducer
+	producer sarama.SyncProducer
 }
 
 func (kap *KafkaAsyncProducer) Init(brokeList []string, conf *sarama.Config) error {
@@ -14,7 +14,7 @@ func (kap *KafkaAsyncProducer) Init(brokeList []string, conf *sarama.Config) err
 		return errors.New("invalid brokerList")
 	}
 
-	producer, err := sarama.NewAsyncProducer(brokeList, conf)
+	producer, err := sarama.NewSyncProducer(brokeList, conf)
 	if err != nil {
 		return err
 	}
@@ -32,12 +32,6 @@ func (kap *KafkaAsyncProducer) SendData(topic string, data []byte) error {
 		Topic: topic,
 		Value: sarama.ByteEncoder(data),
 	}
-
-	select {
-	case kap.producer.Input() <- msg:
-	case err := <-kap.producer.Errors():
-		return err
-	}
-
-	return nil
+	_, _, err := kap.producer.SendMessage(msg)
+	return err
 }
