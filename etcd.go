@@ -120,6 +120,20 @@ func (this *Etcd) Del(key string, prefix bool) (int64, error) {
 	return resp.Del().Deleted, err
 }
 
+func (this *Etcd) Count(prefix string) (int64, error) {
+	opts := []clientv3.OpOption{}
+	opts = append(opts, clientv3.WithPrefix())
+	opts = append(opts, clientv3.WithCountOnly())
+	ctx, cancel := newContexTimeout(this.timeout)
+	out, err := this.Client.Get(ctx, prefix, opts...)
+	cancel()
+	if err != nil {
+		log.Errorf("[etcd][SLA] Count - cli.Get [%s] got error [%v]", prefix, err)
+		return 0, err
+	}
+	return out.Count, nil
+}
+
 func (this *Etcd) CmpKeyNotExist(key string) clientv3.Cmp {
 	return clientv3.Compare(clientv3.CreateRevision(key), "=", 0)
 }
@@ -170,19 +184,28 @@ func (this *Etcd) WatchVisitor(key, action string, prefix bool, visitor EtcdVisi
 }
 
 func (this *Etcd) WalkCallback(prefix string, callback func(key string, val []byte) bool,
-	opts []clientv3.OpOption) error {
-	all_opts := []clientv3.OpOption{}
-	all_opts = append(all_opts, clientv3.WithPrefix())
-	all_opts = append(all_opts, clientv3.WithLimit(500))
-	all_opts = append(all_opts, clientv3.WithRange(clientv3.GetPrefixRangeEnd(prefix)))
+	limit int64, opts []clientv3.OpOption) error {
+	allOpts := []clientv3.OpOption{}
+	allOpts = append(allOpts, clientv3.WithPrefix())
+	allOpts = append(allOpts, clientv3.WithRange(clientv3.GetPrefixRangeEnd(prefix)))
 	if opts != nil {
-		all_opts = append(all_opts, opts...)
+		allOpts = append(allOpts, opts...)
 	}
 
 	keyStart := prefix
 	for {
+		if limit == 0 {
+			break
+		}
+		optLimit := clientv3.WithLimit(500)
+		if limit > 0 && limit < 500 {
+			optLimit = clientv3.WithLimit(limit)
+		}
+		thisOpts := allOpts[:]
+		thisOpts = append(thisOpts, optLimit)
+
 		ctx, cancel := newContexTimeout(this.timeout)
-		out, err := this.Client.Get(ctx, keyStart, all_opts...)
+		out, err := this.Client.Get(ctx, keyStart, thisOpts...)
 		cancel()
 		if err != nil {
 			log.Errorf("[etcd][SLA] WalkVisitor - cli.Get [%s] got error [%v]", keyStart, err)
@@ -193,8 +216,10 @@ func (this *Etcd) WalkCallback(prefix string, callback func(key string, val []by
 		}
 
 		for _, kv := range out.Kvs {
-			log.
-				Debugf("[etcd] WalkVisitor - prefix [%s] keyStart [%s] got [%s:%s]", prefix, keyStart, kv.Key, kv.Value)
+			log.Debugf("[etcd] WalkVisitor - prefix [%s] keyStart [%s] got [%s:%s]", prefix, keyStart, kv.Key, kv.Value)
+			if limit > 0 {
+				limit--
+			}
 			if !callback(string(kv.Key), kv.Value) {
 				log.Errorf("[etcd][SLA] WalkVisitor - canceled by visitor")
 				return nil
@@ -205,6 +230,6 @@ func (this *Etcd) WalkCallback(prefix string, callback func(key string, val []by
 	return nil
 }
 
-func (this *Etcd) WalkVisitor(prefix string, visitor EtcdVisitor, opts []clientv3.OpOption) error {
-	return this.WalkCallback(prefix, visitor.Visit, opts)
+func (this *Etcd) WalkVisitor(prefix string, visitor EtcdVisitor, limit int64, opts []clientv3.OpOption) error {
+	return this.WalkCallback(prefix, visitor.Visit, limit, opts)
 }
