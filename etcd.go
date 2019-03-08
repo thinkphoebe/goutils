@@ -134,6 +134,17 @@ func (this *Etcd) Count(prefix string) (int64, error) {
 	return out.Count, nil
 }
 
+func (this *Etcd) Version(key string) (int64, int64, int64, error) {
+	ctx, cancel := newContexTimeout(this.timeout)
+	out, err := this.Client.Get(ctx, key)
+	cancel()
+	if err != nil || len(out.Kvs) == 0{
+		log.Errorf("[etcd][SLA] Version - cli.Get [%s] got error [%v], kvs len [%d]", key, err, len(out.Kvs))
+		return 0, 0, 0, err
+	}
+	return out.Kvs[0].CreateRevision, out.Kvs[0].ModRevision, out.Kvs[0].Version, nil
+}
+
 func (this *Etcd) CmpKeyNotExist(key string) clientv3.Cmp {
 	return clientv3.Compare(clientv3.CreateRevision(key), "=", 0)
 }
