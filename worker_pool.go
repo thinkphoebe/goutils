@@ -2,7 +2,7 @@ package goutils
 
 import (
 	"errors"
-	log "github.com/thinkphoebe/golog"
+	//log "github.com/thinkphoebe/golog"
 )
 
 type TaskCallback func(param interface{}) (result interface{}, err error)
